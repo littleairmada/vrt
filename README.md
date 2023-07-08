@@ -1,8 +1,8 @@
 # vrt
-[![Build Status](https://img.shields.io/github/actions/workflow/status/littleairmada/vrt/tests.yml?branch=main)](https://github.com/littleairmada/vrt/actions?query=branch%main)
+[![Build Status](https://github.com/littleairmada/vrt/workflows/CI/badge.svg)](https://github.com/littleairmada/vrt/actions?query=workflows%3ACI)
 [![GoDoc](https://godoc.org/github.com/littleairmada/vrt?status.svg)](https://godoc.org/github.com/littleairmada/vrt)
-[![codecov](https://codecov.io/gh/littleairmada/vrt/branch/main/graph/badge.svg)](https://codecov.io/gh/littleairmada/vrt)
-[![Go Report Card](https://goreportcard.com/badge/github.com/littleairmada/vrt)](https://goreportcard.com/report/github.com/littleairmada/vrt)
+[![Coverage Status](https://codecov.io/gh/littleairmada/vrt/branch/master/graph/badge.svg)](https://codecov.io/gh/littleairmada/vrt)
+[![GoReport](https://goreportcard.com/badge/github.com/littleairmada/vrt)](https://goreportcard.com/report/github.com/littleairmada/vrt)
 
 ## Install
 
