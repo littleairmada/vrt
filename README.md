@@ -1,5 +1,5 @@
 # vrt
-[![Build Status](https://github.com/littleairmada/vrt/workflows/CI/badge.svg)](https://github.com/littleairmada/vrt/actions?query=workflows%3ACI)
+[![Build Status](https://github.com/littleairmada/vrt/workflows/Tests/badge.svg)](https://github.com/littleairmada/vrt/actions?query=workflows%3ATests)
 [![GoDoc](https://godoc.org/github.com/littleairmada/vrt?status.svg)](https://godoc.org/github.com/littleairmada/vrt)
 [![Coverage Status](https://codecov.io/gh/littleairmada/vrt/branch/master/graph/badge.svg)](https://codecov.io/gh/littleairmada/vrt)
 [![GoReport](https://goreportcard.com/badge/github.com/littleairmada/vrt)](https://goreportcard.com/report/github.com/littleairmada/vrt)
