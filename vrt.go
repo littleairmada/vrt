@@ -238,7 +238,7 @@ func ValidateVrtPacketSize(header Header, size uint32) (outputHeaderSize uint16,
 		return header.PacketSize, minimumWords, nil
 	}
 
-	// somethign is wrong with the size
+	// Something is wrong with the size
 	err = fmt.Errorf("malformed VRT packet")
 	return header.PacketSize, minimumWords, err
 }
