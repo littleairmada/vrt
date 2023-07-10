@@ -3,7 +3,6 @@ package vrt
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -171,30 +170,29 @@ func (v VRT) LayerContents() (data []byte) {
 	return []byte(buf.Bytes())
 }
 
-// LayerPayload returns the VRT object's Payload
-// VRT packets carry a data payload so the Payload byte slice is retured.
-func (v VRT) LayerPayload() []byte {
-	return v.Payload
-}
-
 // CanDecode returns a set of layers that VRT objects can decode.
 // As VRT objects can only decide the VRT layer, we can return just that layer.
 // Apparently a single layer type implements LayerClass.
-func (v VRT) CanDecode() gopacket.LayerClass {
+func (v *VRT) CanDecode() gopacket.LayerClass {
 	return LayerTypeVRT
 }
 
 // NextLayerType specifies the next layer that GoPacket should attempt to
 // analyse after this (VRT) layer. As VRT packets contain payload
 // bytes, there is an additional layer to analyse.
-func (v VRT) NextLayerType() gopacket.LayerType {
+func (v *VRT) NextLayerType() gopacket.LayerType {
 	return gopacket.LayerTypePayload
+}
+
+// LayerPayload returns the VRT object's Payload
+// VRT packets carry a data payload so the Payload byte slice is retured.
+func (v *VRT) LayerPayload() []byte {
+	return v.Payload
 }
 
 // ValidateVrtPacketSize calculates the minimum size of the VRT packet based on the VRT header
 // and compares to the size of the VRT packet. VRT packets below the minimum size through an error.
 // header.PacketSize is the number of 32 bit words per packet and should always equal size/4.
-// FIXME: fix calculations for packet_words vs packet bytes
 func ValidateVrtPacketSize(header Header, size uint32) (outputHeaderSize uint16, ouputMinimumWords uint32, err error) {
 	var minimumWords uint32 = 1
 
@@ -339,10 +337,29 @@ func (v *VRT) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 // SerializationBuffer, implementing gopacket.SerializableLayer.
 // See the docs for gopacket.SerializableLayer for more info.
 func (v *VRT) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOptions) error {
-	data, err := b.PrependBytes(vrtMinimumRecordSizeInBytes)
+	size := 4
+	if (v.Header.Type == IFDataWithStream) || (v.Header.Type == ExtDataWithStream) {
+		size += 4
+	}
+	if v.Header.C {
+		size += 8
+	}
+	if v.Header.TSI != TSINone {
+		size += 4
+	}
+	if v.Header.TSF != TSFNone {
+		size += 8
+	}
+	if v.Header.T {
+		size += 4
+	}
+
+	data, err := b.PrependBytes(size)
 	if err != nil {
 		return err
 	}
+
+	var offset uint32 = 0
 
 	// Pack the first few fields into the first 32 bits.
 	h := uint8(0)
@@ -350,11 +367,9 @@ func (v *VRT) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOpt
 	if v.Header.C {
 		h |= (uint8(1) << 3) & 0x08
 	}
-	// h |= (uint8(v.Header.C) << 3) & 0x08
 	if v.Header.T {
 		h |= (uint8(1) << 2) & 0x04
 	}
-	//h |= (uint8(v.Header.T) << 2) & 0x04
 	//h |= (uint8(v.Header.R1) & 0x02)
 	//h |= (uint8(v.Header.R2) & 0x01)
 
@@ -367,14 +382,37 @@ func (v *VRT) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOpt
 	data[1] = byte(h1)
 
 	// The remaining fields can just be copied in big endian order.
-	binary.BigEndian.PutUint16(data[2:4], uint16(v.Header.PacketSize))
-	binary.BigEndian.PutUint32(data[4:8], uint32(v.StreamID))
-	// TODO
-	//binary.BigEndian.PutUint32(data[4:8], uint32(v.ClassID.OUI))
-	//binary.BigEndian.PutUint32(data[4:8], uint32(v.ClassID.PacketClassCode))
-	//binary.BigEndian.PutUint32(data[4:8], uint32(v.ClassID.InformationClassCode))
-	//binary.BigEndian.PutUint32(data[4:8], uint32(v.TimestampInt))
-	//binary.BigEndian.PutUint32(data[4:8], uint32(v.TimestampFrac))
+	binary.BigEndian.PutUint16(data[offset+2:offset+4], uint16(v.Header.PacketSize))
+
+	// Update offset for further packet parsing
+	offset += 4
+
+	// Add StreamID when Header.Type == IFDataWithStream || ExtDataWithStream
+	if (v.Header.Type == IFDataWithStream) || (v.Header.Type == ExtDataWithStream) {
+		binary.BigEndian.PutUint32(data[offset:offset+4], uint32(v.StreamID))
+		offset += 4
+	}
+
+	// Set ClassID when Header C is set
+	if v.Header.C {
+		binary.BigEndian.PutUint32(data[offset:offset+4], uint32(v.ClassID.OUI))
+		offset += 4
+		binary.BigEndian.PutUint16(data[offset:offset+2], uint16(v.ClassID.PacketClassCode))
+		binary.BigEndian.PutUint16(data[offset+2:offset+4], uint16(v.ClassID.InformationClassCode))
+		offset += 4
+	}
+
+	// Set Timestamp Integer Seconds
+	if v.Header.TSI != TSINone {
+		binary.BigEndian.PutUint32(data[offset:offset+4], uint32(v.TimestampInt))
+		offset += 4
+	}
+
+	// Set Timestamp Fractional Seconds
+	if v.Header.TSF != TSFNone {
+		binary.BigEndian.PutUint64(data[offset:offset+8], uint64(v.TimestampFrac))
+		offset += 8
+	}
 
 	// Append the VRT Payload based on Payload size
 	ex, err := b.AppendBytes(len(v.Payload))
@@ -384,15 +422,15 @@ func (v *VRT) SerializeTo(b gopacket.SerializeBuffer, opts gopacket.SerializeOpt
 	copy(ex, v.Payload)
 
 	// Add byte padding if Payload does not fall on a byte boundary
-	res := math.Mod(float64(len(v.Payload)), 4)
-	if res != 0 {
-		extraBytePadding := make([]byte, int(res))
-		ex, err := b.AppendBytes(int(res))
-		if err != nil {
-			return err
-		}
-		copy(ex, extraBytePadding)
-	}
+	// res := math.Mod(float64(len(v.Payload)), 4)
+	// if res != 0 {
+	// 	extraBytePadding := make([]byte, int(res))
+	// 	ex, err := b.AppendBytes(int(res))
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	copy(ex, extraBytePadding)
+	// }
 
 	return nil
 }
